@@ -91,6 +91,11 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
               {isBn ? 'ভেরিফাইড' : 'Verified'}
             </span>
           )}
+          {property.isLandlordVerified && (
+            <span className="px-2 py-1 rounded-xl text-xs font-semibold bg-[#FAEDCD] text-[#8C6D44] flex items-center gap-1 shadow-xs border border-[#D4A373]/40" title={isBn ? 'মালিক ভেরিফাইড' : 'Verified Landlord'}>
+              <ShieldCheck className="w-3.5 h-3.5 fill-current" />
+            </span>
+          )}
         </div>
 
         {/* Favorite Button */}
