@@ -1,5 +1,5 @@
-import React from 'react';
-import { Property, VisitRequest } from '../types';
+import React, { useState } from 'react';
+import { Property, VisitRequest, User } from '../types';
 import { 
   Building2, 
   PlusCircle, 
@@ -16,8 +16,13 @@ import {
   Flame,
   Home,
   Store,
-  Users
+  Users,
+  ShieldAlert,
+  Upload,
+  ShieldCheck,
+  Loader2
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 interface LandlordViewProps {
   properties: Property[];
@@ -28,6 +33,8 @@ interface LandlordViewProps {
   onDeclineVisitRequest: (requestId: string) => void;
   language: 'bn' | 'en';
   onSelectProperty: (property: Property) => void;
+  currentUser: User | null;
+  onVerificationSubmit: () => void;
 }
 
 export const LandlordView: React.FC<LandlordViewProps> = ({
@@ -38,9 +45,15 @@ export const LandlordView: React.FC<LandlordViewProps> = ({
   onAcceptVisitRequest,
   onDeclineVisitRequest,
   language,
-  onSelectProperty
+  onSelectProperty,
+  currentUser,
+  onVerificationSubmit
 }) => {
   const isBn = language === 'bn';
+  const [nidFront, setNidFront] = useState<File | null>(null);
+  const [nidBack, setNidBack] = useState<File | null>(null);
+  const [isUploadingNid, setIsUploadingNid] = useState(false);
+  const [nidError, setNidError] = useState('');
 
   const formatBDT = (amount: number) => {
     return new Intl.NumberFormat('en-IN').format(amount);
@@ -50,8 +63,113 @@ export const LandlordView: React.FC<LandlordViewProps> = ({
   const pendingCount = properties.filter(p => p.status === 'PENDING').length;
   const rentedCount = properties.filter(p => p.status === 'RENTED').length;
 
+  const handleNidSubmit = async () => {
+    if (!nidFront || !nidBack || !currentUser) return;
+    setIsUploadingNid(true);
+    setNidError('');
+    try {
+      const frontExt = nidFront.name.split('.').pop();
+      const backExt = nidBack.name.split('.').pop();
+      const frontPath = `${currentUser.id}/front_${Date.now()}.${frontExt}`;
+      const backPath = `${currentUser.id}/back_${Date.now()}.${backExt}`;
+
+      const [frontRes, backRes] = await Promise.all([
+        supabase.storage.from('verification-documents').upload(frontPath, nidFront),
+        supabase.storage.from('verification-documents').upload(backPath, nidBack)
+      ]);
+
+      if (frontRes.error) throw frontRes.error;
+      if (backRes.error) throw backRes.error;
+
+      const { data: frontUrlData } = supabase.storage.from('verification-documents').getPublicUrl(frontPath);
+      const { data: backUrlData } = supabase.storage.from('verification-documents').getPublicUrl(backPath);
+
+      const { error: updateError } = await supabase.from('users').update({
+        nid_front_url: frontUrlData.publicUrl,
+        nid_back_url: backUrlData.publicUrl
+      }).eq('id', currentUser.id);
+
+      if (updateError) throw updateError;
+      
+      onVerificationSubmit();
+      setNidFront(null);
+      setNidBack(null);
+    } catch (err: any) {
+      setNidError(err.message || 'Failed to upload NID');
+    } finally {
+      setIsUploadingNid(false);
+    }
+  };
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 max-w-6xl mx-auto">
+      
+      {/* Verification Banner */}
+      {currentUser && !currentUser.is_verified && (
+        <div className="bg-[#FFF8E6] border border-[#F4E1A1] rounded-2xl p-6 shadow-sm">
+          <div className="flex items-start gap-4">
+            <ShieldAlert className="w-8 h-8 text-[#D4A373] shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-[#8C6D44] mb-1">
+                {isBn ? 'অ্যাকাউন্ট ভেরিফিকেশন প্রয়োজন' : 'Account Verification Required'}
+              </h3>
+              <p className="text-[#5A6D56] text-sm mb-4">
+                {isBn 
+                  ? 'আপনার প্রপার্টিতে "Verified Landlord" ব্যাজ পেতে এবং ভাড়াটিয়াদের আস্থা অর্জন করতে আপনার জাতীয় পরিচয়পত্র (NID) আপলোড করুন। এটি সম্পূর্ণ সুরক্ষিত এবং শুধুমাত্র অ্যাডমিনদের কাছে দৃশ্যমান।' 
+                  : 'Upload your National Identity Card (NID) to get the "Verified Landlord" badge and earn tenant trust. This is fully secure and only visible to admins.'}
+              </p>
+              
+              {currentUser.nid_front_url ? (
+                <div className="flex items-center gap-2 text-sm font-bold text-[#8C6D44] bg-[#F4E1A1]/30 p-3 rounded-xl border border-[#F4E1A1]">
+                  <Clock className="w-4 h-4" />
+                  {isBn ? 'আপনার NID রিভিউয়ের জন্য অপেক্ষমান রয়েছে। অ্যাডমিন প্যানেল থেকে খুব শীঘ্রই এটি যাচাই করা হবে।' : 'Your NID is under review. An admin will verify it shortly.'}
+                </div>
+              ) : (
+                <div className="bg-white p-4 rounded-xl border border-[#F4E1A1] space-y-4 max-w-xl">
+                  {nidError && <div className="text-red-500 text-xs font-bold">{nidError}</div>}
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-[#354231] mb-1.5">{isBn ? 'NID এর সামনের ছবি' : 'NID Front Image'}</label>
+                      <input 
+                        type="file" 
+                        accept="image/*"
+                        onChange={(e) => setNidFront(e.target.files?.[0] || null)}
+                        className="block w-full text-xs text-[#5A6D56] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#E9EDC9] file:text-[#2D5A27] hover:file:bg-[#CCD5AE] transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-[#354231] mb-1.5">{isBn ? 'NID এর পেছনের ছবি' : 'NID Back Image'}</label>
+                      <input 
+                        type="file" 
+                        accept="image/*"
+                        onChange={(e) => setNidBack(e.target.files?.[0] || null)}
+                        className="block w-full text-xs text-[#5A6D56] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#E9EDC9] file:text-[#2D5A27] hover:file:bg-[#CCD5AE] transition-colors"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleNidSubmit}
+                    disabled={!nidFront || !nidBack || isUploadingNid}
+                    className="flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-2 bg-[#D4A373] text-white rounded-xl text-sm font-bold hover:bg-[#C29362] transition-colors disabled:opacity-50"
+                  >
+                    {isUploadingNid ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    {isBn ? 'সাবমিট করুন' : 'Submit NID'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {currentUser?.is_verified && (
+        <div className="bg-[#E9EDC9] border border-[#CCD5AE] rounded-2xl p-4 shadow-sm flex items-center gap-3">
+          <ShieldCheck className="w-6 h-6 text-[#2D5A27]" />
+          <span className="text-[#2D5A27] font-bold text-sm">
+            {isBn ? 'অভিনন্দন! আপনি একজন ভেরিফায়েড বাড়িওয়ালা।' : 'Congratulations! You are a verified landlord.'}
+          </span>
+        </div>
+      )}
       
       {/* Landlord Header Banner */}
       <div className="bg-[#2D5A27] text-white rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-md border border-[#396D32]">
