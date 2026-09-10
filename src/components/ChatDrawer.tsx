@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Property, ChatMessage, Role } from '../types';
 import { X, Send, MessageCircle, CheckCheck, User, ShieldCheck } from 'lucide-react';
+import { supabase, mapDbChatMessageToFrontend } from '../lib/supabase';
 
 interface ChatDrawerProps {
   property: Property | null;
@@ -8,6 +9,7 @@ interface ChatDrawerProps {
   onClose: () => void;
   language: 'bn' | 'en';
   currentRole: Role;
+  currentUserId: string | null;
 }
 
 export const ChatDrawer: React.FC<ChatDrawerProps> = ({
@@ -15,56 +17,106 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
   isOpen,
   onClose,
   language,
-  currentRole
+  currentRole,
+  currentUserId
 }) => {
   if (!isOpen || !property) return null;
 
   const isBn = language === 'bn';
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'msg-1',
-      propertyId: property.id,
-      senderRole: 'LANDLORD',
-      senderName: property.landlordName,
-      text: isBn 
-        ? `আসসালামু আলাইকুম! "${property.titleBn}" সম্পর্কে কোনো প্রশ্ন থাকলে জানান।` 
-        : `Assalamu Alaikum! Feel free to ask any questions about "${property.title}".`,
-      timestamp: '10:15 AM'
-    }
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const fetchMessages = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select(`*, users!chat_messages_sender_id_fkey(full_name)`)
+        .eq('property_id', property.id)
+        .order('created_at', { ascending: true });
+
+      if (!error && data) {
+        setMessages(data.map(m => mapDbChatMessageToFrontend(m, property.landlordId)));
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && property) {
+      fetchMessages();
+
+      const channel = supabase
+        .channel(`public:chat_messages:property_id=eq.${property.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'chat_messages',
+            filter: `property_id=eq.${property.id}`
+          },
+          async (payload) => {
+            // Fetch sender details manually for the new message
+            const { data: userData } = await supabase
+              .from('users')
+              .select('full_name')
+              .eq('id', payload.new.sender_id)
+              .single();
+
+            const newDbMsg = { ...payload.new, users: userData };
+            setMessages(prev => [...prev, mapDbChatMessageToFrontend(newDbMsg, property.landlordId)]);
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [isOpen, property]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isOpen]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || !currentUserId) return;
 
-    const newMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
-      propertyId: property.id,
-      senderRole: currentRole === 'LANDLORD' ? 'LANDLORD' : 'TENANT',
-      senderName: currentRole === 'LANDLORD' ? property.landlordName : 'Tanvir Ahmed (Tenant)',
-      text: inputText.trim(),
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-
-    setMessages(prev => [...prev, newMsg]);
+    const messageToSend = inputText.trim();
     setInputText('');
 
-    // Simulate auto-reply from Landlord if current role is Tenant
-    if (currentRole === 'TENANT') {
-      setTimeout(() => {
-        const replyMsg: ChatMessage = {
-          id: `msg-${Date.now() + 1}`,
-          propertyId: property.id,
-          senderRole: 'LANDLORD',
-          senderName: property.landlordName,
-          text: isBn
-            ? 'ধন্যবাদ! বাসাটি এখনও খালি রয়েছে। আপনি চাইলে যে কোনো দিন সকাল ১০টা থেকে বিকাল ৫টার মধ্যে সরাসরি এসে দেখে যেতে পারেন।'
-            : 'Thank you! The unit is currently vacant. You are welcome to visit anytime between 10 AM and 5 PM.',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-        setMessages(prev => [...prev, replyMsg]);
-      }, 1200);
+    // Determine receiver
+    // If sender is tenant, receiver is landlord
+    // If sender is landlord, we don't strictly know which tenant they are talking to in this simple UI unless we keep track of the chat session.
+    // For now, if landlord replies, we'll just set receiver_id to the last tenant who messaged, or just fail gracefully if no tenant.
+    let receiverId = property.landlordId;
+    if (currentRole === 'LANDLORD') {
+      const lastTenantMsg = messages.slice().reverse().find(m => m.senderRole === 'TENANT');
+      if (lastTenantMsg) {
+        receiverId = lastTenantMsg.senderId;
+      } else {
+        // Can't reply if no tenant has messaged yet in this simplified flow
+        console.error("Landlord cannot initiate chat without a tenant");
+        return;
+      }
+    }
+
+    try {
+      await supabase.from('chat_messages').insert({
+        property_id: property.id,
+        sender_id: currentUserId,
+        receiver_id: receiverId,
+        text: messageToSend
+      });
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -113,30 +165,40 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
 
         {/* Message Thread */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#FDFBF7]">
-          {messages.map(msg => {
-            const isMe = (currentRole === 'LANDLORD' && msg.senderRole === 'LANDLORD') ||
-                         (currentRole !== 'LANDLORD' && msg.senderRole === 'TENANT');
+          {isLoading ? (
+            <div className="flex justify-center py-4">
+              <span className="w-5 h-5 border-2 border-[#2D5A27] border-t-transparent rounded-full animate-spin"></span>
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="text-center py-10 text-xs text-[#8F9E8B]">
+              {isBn ? 'কোনো মেসেজ নেই। চ্যাট শুরু করুন!' : 'No messages yet. Start the conversation!'}
+            </div>
+          ) : (
+            messages.map(msg => {
+              const isMe = msg.senderId === currentUserId;
 
-            return (
-              <div
-                key={msg.id}
-                className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-              >
-                <span className="text-[10px] text-[#8F9E8B] mb-0.5 px-1 font-medium">
-                  {msg.senderName} • {msg.timestamp}
-                </span>
+              return (
                 <div
-                  className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed shadow-2xs ${
-                    isMe
-                      ? 'bg-[#2D5A27] text-white rounded-br-none'
-                      : 'bg-white text-[#354231] border border-[#E5E0D8] rounded-bl-none'
-                  }`}
+                  key={msg.id}
+                  className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                 >
-                  {msg.text}
+                  <span className="text-[10px] text-[#8F9E8B] mb-0.5 px-1 font-medium">
+                    {msg.senderName} • {msg.timestamp}
+                  </span>
+                  <div
+                    className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed shadow-2xs ${
+                      isMe
+                        ? 'bg-[#2D5A27] text-white rounded-br-none'
+                        : 'bg-white text-[#354231] border border-[#E5E0D8] rounded-bl-none'
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Chat Input */}
