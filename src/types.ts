@@ -6,6 +6,18 @@ export type TargetCategory = 'FAMILY' | 'BACHELOR_STUDENT' | 'FEMALE_STUDENT' | 
 
 export type GasType = 'TITAS_LINE' | 'CYLINDER' | 'NONE';
 
+export interface User {
+  id: string;
+  role: Role;
+  full_name: string;
+  phone_number: string | null;
+  avatar_url: string | null;
+  is_verified: boolean;
+  nid_front_url: string | null;
+  nid_back_url: string | null;
+  created_at: string;
+}
+
 export interface Property {
   id: string;
   title: string;
@@ -35,6 +47,7 @@ export interface Property {
   landlordName: string;
   landlordPhone: string;
   landlordAvatar: string;
+  isLandlordVerified: boolean;
   isVerified: boolean;
   status: 'ACTIVE' | 'PENDING' | 'RENTED' | 'REJECTED';
   viewsCount: number;
@@ -61,6 +74,7 @@ export interface VisitRequest {
 export interface ChatMessage {
   id: string;
   propertyId: string;
+  senderId: string;
   senderRole: 'TENANT' | 'LANDLORD';
   senderName: string;
   text: string;
