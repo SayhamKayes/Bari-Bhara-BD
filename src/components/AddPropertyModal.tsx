@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { BANGLADESH_DIVISIONS, DHAKA_AREAS } from '../data/mockProperties';
+import { supabase } from '../lib/supabase';
 
 interface AddPropertyModalProps {
   isOpen: boolean;
@@ -60,7 +61,9 @@ export const AddPropertyModal: React.FC<AddPropertyModalProps> = ({
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([
     'Lift', '24/7 Guard', 'WASA Water', 'Generator Backup'
   ]);
-  const [imageUrl, setImageUrl] = useState('https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1000&q=80');
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const ALL_AMENITIES = [
     'Lift',
@@ -83,54 +86,98 @@ export const AddPropertyModal: React.FC<AddPropertyModalProps> = ({
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setSelectedFiles(Array.from(e.target.files));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    setErrorMsg(null);
 
-    const newProperty: Property = {
-      id: `prop-${Date.now()}`,
-      title: title || (propertyType === 'FLAT' ? `${bedrooms}-Bed Flat in ${area}` : propertyType === 'ROOM' ? `Bachelor Room in ${area}` : `Commercial Space in ${area}`),
-      titleBn: titleBn || (propertyType === 'FLAT' ? `${area}তে ${bedrooms} বেডের আধুনিক ফ্ল্যাট` : propertyType === 'ROOM' ? `${area}তে ব্যাচেলর/স্টুডেন্ট রুম` : `${area}তে বাণিজ্যিক দোকান স্পেস`),
-      propertyType,
-      category,
-      division,
-      city,
-      area,
-      address: address || `${area}, ${city}`,
-      addressBn: addressBn || `${area}, ${city}`,
-      rentAmount: Number(rentAmount),
-      advanceAmount: Number(advanceAmount),
-      serviceCharge: Number(serviceCharge),
-      gasType,
-      bedrooms: propertyType === 'STORE' ? undefined : Number(bedrooms),
-      bathrooms: propertyType === 'STORE' ? undefined : Number(bathrooms),
-      squareFeet: Number(squareFeet),
-      floorNumber: Number(floorNumber),
-      totalFloors: Number(totalFloors),
-      amenities: selectedAmenities,
-      images: [imageUrl],
-      availableFrom,
-      availableFromBn,
-      landlordId: 'landlord-current',
-      landlordName: 'Self Listed Landlord',
-      landlordPhone: '+880 1712-345678',
-      landlordAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80',
-      isVerified: false,
-      status: 'PENDING', // Will require Admin approval in system
-      viewsCount: 1,
-      houseRules: ['On-time rent payment', 'Maintain cleanliness'],
-      houseRulesBn: ['সময়মত ভাড়া পরিশোধ করতে হবে', 'পরিচ্ছন্নতা বজায় রাখতে হবে'],
-      description: description || 'Well maintained property in prime location with all basic utilities.',
-      descriptionBn: descriptionBn || 'মনোরম পরিবেশে অবস্থিত আধুনিক সুযোগ-সুবিধাসম্পন্ন প্রপার্টি।',
-      createdAt: new Date().toISOString().split('T')[0]
-    };
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
+      
+      if (!userId) {
+        throw new Error('You must be logged in to post a property.');
+      }
 
-    onAddProperty(newProperty);
-    confetti({
-      particleCount: 70,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
-    onClose();
+      const dbTitle = title || (propertyType === 'FLAT' ? `${bedrooms}-Bed Flat in ${area}` : propertyType === 'ROOM' ? `Bachelor Room in ${area}` : `Commercial Space in ${area}`);
+      const dbDescription = description || 'Well maintained property in prime location with all basic utilities.';
+
+      let uploadedImageUrls: string[] = [];
+      
+      if (selectedFiles.length > 0) {
+        for (const file of selectedFiles) {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${userId}-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('property-images')
+            .upload(fileName, file);
+            
+          if (uploadError) {
+            console.error('Upload error:', uploadError);
+            throw new Error(`Failed to upload image: ${file.name}`);
+          }
+          
+          const { data: { publicUrl } } = supabase.storage
+            .from('property-images')
+            .getPublicUrl(fileName);
+            
+          uploadedImageUrls.push(publicUrl);
+        }
+      } else {
+        // Fallback placeholder
+        uploadedImageUrls = ['https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1000&q=80'];
+      }
+
+      const { error } = await supabase.from('properties').insert({
+        landlord_id: userId,
+        title: dbTitle,
+        description: dbDescription,
+        property_type: propertyType,
+        target_category: category,
+        division,
+        city,
+        area,
+        address,
+        monthly_rent: Number(rentAmount),
+        advance_deposit: Number(advanceAmount),
+        service_charge: Number(serviceCharge),
+        gas_type: gasType,
+        bedrooms: propertyType === 'STORE' ? null : Number(bedrooms),
+        bathrooms: propertyType === 'STORE' ? null : Number(bathrooms),
+        square_feet: Number(squareFeet),
+        floor_number: Number(floorNumber),
+        total_floors: Number(totalFloors),
+        amenities: selectedAmenities,
+        images: uploadedImageUrls,
+        available_from: availableFromBn, // Saving BN version as default for now
+        house_rules: ['On-time rent payment', 'Maintain cleanliness'],
+        status: 'PENDING',
+        is_verified: false
+      });
+
+      if (error) throw error;
+
+      // Create a mock property to pass back for UI refresh or just trigger refresh
+      onAddProperty({} as Property); // Actual mapping isn't needed if we fetch from DB
+      
+      confetti({
+        particleCount: 70,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error adding property');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -471,10 +518,51 @@ export const AddPropertyModal: React.FC<AddPropertyModalProps> = ({
             </div>
           </div>
 
+          {/* Step 6: Images */}
+          <div>
+            <label className="text-xs font-bold text-[#354231] uppercase tracking-wider block mb-1">
+              {isBn ? '৬. প্রপার্টির ছবি আপলোড করুন' : '6. Upload Property Images'}
+            </label>
+            <div className="border-2 border-dashed border-[#CCD5AE] rounded-xl p-4 flex flex-col items-center justify-center gap-2 bg-[#FDFBF7] relative hover:bg-[#F5F2EC] transition-colors cursor-pointer">
+              <input 
+                type="file" 
+                accept="image/*" 
+                multiple 
+                onChange={handleFileChange}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+              <Camera className="w-8 h-8 text-[#8F9E8B]" />
+              <div className="text-xs font-semibold text-[#5A6D56] text-center">
+                {isBn ? 'ছবি নির্বাচন করতে ক্লিক করুন' : 'Click to select images'}
+              </div>
+              <div className="text-[10px] text-[#8F9E8B]">
+                {selectedFiles.length > 0 ? (
+                  <span className="text-[#2D5A27] font-bold">{selectedFiles.length} {isBn ? 'টি ছবি নির্বাচিত হয়েছে' : 'images selected'}</span>
+                ) : (
+                  isBn ? 'সর্বোচ্চ ৫টি ছবি আপলোড করতে পারবেন' : 'You can upload up to 5 images'
+                )}
+              </div>
+            </div>
+            
+            {/* Image Preview */}
+            {selectedFiles.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto py-2 mt-2">
+                {selectedFiles.map((file, index) => (
+                  <img 
+                    key={index} 
+                    src={URL.createObjectURL(file)} 
+                    alt={`Preview ${index}`} 
+                    className="w-16 h-16 object-cover rounded-lg border border-[#E5E0D8] shrink-0" 
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Description */}
           <div>
             <label className="text-xs font-bold text-[#354231] uppercase tracking-wider block mb-1">
-              {isBn ? '৬. বিস্তারিত বিবরণ ও নিয়মাবলী' : '6. Description & Rules'}
+              {isBn ? '৭. বিস্তারিত বিবরণ ও নিয়মাবলী' : '7. Description & Rules'}
             </label>
             <textarea
               rows={3}
@@ -486,6 +574,11 @@ export const AddPropertyModal: React.FC<AddPropertyModalProps> = ({
           </div>
 
           {/* Submit Action */}
+          {errorMsg && (
+            <div className="bg-rose-50 text-rose-600 p-3 rounded-lg text-sm font-medium border border-rose-200">
+              {errorMsg}
+            </div>
+          )}
           <div className="pt-3 border-t border-[#E5E0D8] flex items-center justify-end gap-3">
             <button
               type="button"
@@ -496,10 +589,11 @@ export const AddPropertyModal: React.FC<AddPropertyModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-6 py-2.5 rounded-xl bg-[#2D5A27] hover:bg-[#23471E] text-white text-xs font-bold shadow-sm flex items-center gap-1.5 active:scale-95 transition-all"
+              disabled={isSubmitting}
+              className="px-6 py-2.5 rounded-xl bg-[#2D5A27] hover:bg-[#23471E] text-white text-xs font-bold shadow-sm flex items-center gap-1.5 active:scale-95 transition-all disabled:opacity-70"
             >
               <Sparkles className="w-4 h-4 text-[#FAEDCD]" />
-              <span>{isBn ? 'বিজ্ঞাপন প্রকাশ করুন (Submit Listing)' : 'Publish Listing'}</span>
+              <span>{isSubmitting ? '...' : (isBn ? 'বিজ্ঞাপন প্রকাশ করুন (Submit Listing)' : 'Publish Listing')}</span>
             </button>
           </div>
 
