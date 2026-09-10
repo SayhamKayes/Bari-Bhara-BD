@@ -1,31 +1,47 @@
 import React from 'react';
 import { Role } from '../types';
 import { Building2, Home, ShieldCheck, BookOpen, PlusCircle, Globe, Sparkles, UserCheck } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 interface NavbarProps {
   currentRole: Role;
   onRoleChange: (role: Role) => void;
-  activeTab: 'browse' | 'landlord' | 'admin' | 'guide' | 'my-requests';
-  onTabChange: (tab: 'browse' | 'landlord' | 'admin' | 'guide' | 'my-requests') => void;
   language: 'bn' | 'en';
   onLanguageToggle: () => void;
   onOpenAddModal: () => void;
   pendingAdminCount: number;
   visitRequestsCount: number;
+  isAuthenticated: boolean;
+  onOpenAuthModal: () => void;
+  onLogout: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentRole,
   onRoleChange,
-  activeTab,
-  onTabChange,
   language,
   onLanguageToggle,
   onOpenAddModal,
   pendingAdminCount,
-  visitRequestsCount
+  visitRequestsCount,
+  isAuthenticated,
+  onOpenAuthModal,
+  onLogout
 }) => {
   const isBn = language === 'bn';
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Helper to determine active tab based on pathname
+  const getActiveTab = () => {
+    if (location.pathname === '/landlord') return 'landlord';
+    if (location.pathname === '/tenant') return 'my-dashboard';
+    if (location.pathname === '/admin') return 'admin';
+    if (location.pathname === '/guide') return 'guide';
+    return 'browse';
+  };
+  
+  const activeTab = getActiveTab();
 
   return (
     <header className="sticky top-0 z-40 bg-[#2D5A27] text-white shadow-md">
@@ -44,7 +60,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           
           {/* Logo */}
           <div 
-            onClick={() => onTabChange('browse')}
+            onClick={() => navigate('/')}
             className="flex items-center gap-2.5 cursor-pointer select-none group"
             id="brand-logo"
           >
@@ -68,7 +84,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <nav className="hidden md:flex items-center gap-1">
             <button
               id="nav-tab-browse"
-              onClick={() => onTabChange('browse')}
+              onClick={() => navigate('/')}
               className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5 ${
                 activeTab === 'browse'
                   ? 'bg-[#E9EDC9] text-[#2D5A27] font-bold shadow-xs'
@@ -79,10 +95,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               {isBn ? 'বাসা ও দোকান খুঁজুন' : 'Browse Listings'}
             </button>
 
-            {currentRole === 'LANDLORD' && (
+            {isAuthenticated && currentRole === 'LANDLORD' && (
               <button
                 id="nav-tab-landlord"
-                onClick={() => onTabChange('landlord')}
+                onClick={() => navigate('/landlord')}
                 className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5 ${
                   activeTab === 'landlord'
                     ? 'bg-[#E9EDC9] text-[#2D5A27] font-bold shadow-xs'
@@ -99,10 +115,25 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {currentRole === 'ADMIN' && (
+            {isAuthenticated && currentRole === 'TENANT' && (
+              <button
+                id="nav-tab-tenant-dashboard"
+                onClick={() => navigate('/tenant')}
+                className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                  activeTab === 'my-dashboard'
+                    ? 'bg-[#E9EDC9] text-[#2D5A27] font-bold shadow-xs'
+                    : 'text-white/90 hover:text-white hover:bg-[#23471E]'
+                }`}
+              >
+                <UserCheck className="w-4 h-4" />
+                {isBn ? 'আমার ড্যাশবোর্ড' : 'My Dashboard'}
+              </button>
+            )}
+
+            {isAuthenticated && currentRole === 'ADMIN' && (
               <button
                 id="nav-tab-admin"
-                onClick={() => onTabChange('admin')}
+                onClick={() => navigate('/admin')}
                 className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5 ${
                   activeTab === 'admin'
                     ? 'bg-[#E9EDC9] text-[#2D5A27] font-bold shadow-xs'
@@ -121,7 +152,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               id="nav-tab-guide"
-              onClick={() => onTabChange('guide')}
+              onClick={() => navigate('/guide')}
               className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5 ${
                 activeTab === 'guide'
                   ? 'bg-[#D4A373] text-white font-bold shadow-xs'
@@ -147,54 +178,71 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>{isBn ? 'EN' : 'বাং'}</span>
             </button>
 
-            {/* Role Switcher Pill */}
-            <div className="flex items-center bg-[#23471E] p-1 rounded-2xl border border-[#396D32] text-xs">
+            {/* Role Switcher Pill - Only show if authenticated */}
+            {isAuthenticated ? (
+              <div className="flex items-center bg-[#23471E] p-1 rounded-2xl border border-[#396D32] text-xs">
+                <button
+                  id="role-btn-tenant"
+                  onClick={() => {
+                    onRoleChange('TENANT');
+                    if (activeTab === 'admin' || activeTab === 'landlord') navigate('/');
+                  }}
+                  className={`px-2.5 py-1.5 rounded-xl font-medium transition-all ${
+                    currentRole === 'TENANT'
+                      ? 'bg-[#E9EDC9] text-[#2D5A27] shadow-xs font-bold'
+                      : 'text-[#CCD5AE] hover:text-white'
+                  }`}
+                >
+                  {isBn ? 'ভাড়াটিয়া' : 'Tenant'}
+                </button>
+                <button
+                  id="role-btn-landlord"
+                  onClick={() => {
+                    onRoleChange('LANDLORD');
+                    navigate('/landlord');
+                  }}
+                  className={`px-2.5 py-1.5 rounded-xl font-medium transition-all ${
+                    currentRole === 'LANDLORD'
+                      ? 'bg-[#D4A373] text-white shadow-xs font-bold'
+                      : 'text-[#CCD5AE] hover:text-white'
+                  }`}
+                >
+                  {isBn ? 'বাড়িওয়ালা' : 'Owner'}
+                </button>
+                <button
+                  id="role-btn-admin"
+                  onClick={() => {
+                    onRoleChange('ADMIN');
+                    navigate('/admin');
+                  }}
+                  className={`px-2.5 py-1.5 rounded-xl font-medium transition-all ${
+                    currentRole === 'ADMIN'
+                      ? 'bg-rose-600 text-white shadow-xs font-bold'
+                      : 'text-[#CCD5AE] hover:text-white'
+                  }`}
+                >
+                  {isBn ? 'অ্যাডমিন' : 'Admin'}
+                </button>
+                <button
+                  onClick={onLogout}
+                  className="px-2.5 py-1.5 rounded-xl font-medium transition-all text-[#CCD5AE] hover:text-rose-400"
+                  title="Logout"
+                >
+                  {isBn ? 'লগআউট' : 'Logout'}
+                </button>
+              </div>
+            ) : (
               <button
-                id="role-btn-tenant"
-                onClick={() => {
-                  onRoleChange('TENANT');
-                  if (activeTab === 'admin' || activeTab === 'landlord') onTabChange('browse');
-                }}
-                className={`px-2.5 py-1.5 rounded-xl font-medium transition-all ${
-                  currentRole === 'TENANT'
-                    ? 'bg-[#E9EDC9] text-[#2D5A27] shadow-xs font-bold'
-                    : 'text-[#CCD5AE] hover:text-white'
-                }`}
+                onClick={onOpenAuthModal}
+                className="bg-[#D4A373] hover:bg-[#C09262] text-white text-xs sm:text-sm font-bold px-3 sm:px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-sm transition-all"
               >
-                {isBn ? 'ভাড়াটিয়া' : 'Tenant'}
+                <UserCheck className="w-4 h-4" />
+                <span>{isBn ? 'অ্যাকাউন্ট' : 'Account'}</span>
               </button>
-              <button
-                id="role-btn-landlord"
-                onClick={() => {
-                  onRoleChange('LANDLORD');
-                  onTabChange('landlord');
-                }}
-                className={`px-2.5 py-1.5 rounded-xl font-medium transition-all ${
-                  currentRole === 'LANDLORD'
-                    ? 'bg-[#D4A373] text-white shadow-xs font-bold'
-                    : 'text-[#CCD5AE] hover:text-white'
-                }`}
-              >
-                {isBn ? 'বাড়িওয়ালা' : 'Owner'}
-              </button>
-              <button
-                id="role-btn-admin"
-                onClick={() => {
-                  onRoleChange('ADMIN');
-                  onTabChange('admin');
-                }}
-                className={`px-2.5 py-1.5 rounded-xl font-medium transition-all ${
-                  currentRole === 'ADMIN'
-                    ? 'bg-rose-600 text-white shadow-xs font-bold'
-                    : 'text-[#CCD5AE] hover:text-white'
-                }`}
-              >
-                {isBn ? 'অ্যাডমিন' : 'Admin'}
-              </button>
-            </div>
+            )}
 
             {/* Post Property Quick Button for Landlords */}
-            {currentRole === 'LANDLORD' && (
+            {isAuthenticated && currentRole === 'LANDLORD' && (
               <button
                 id="btn-post-property"
                 onClick={onOpenAddModal}
