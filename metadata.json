@@ -1,0 +1,6 @@
+{
+  "name": "BariBhra BD - Rental Platform & Architecture Guide",
+  "description": "A rental property platform for Bangladesh (Flat, Student Room, Commercial Store) with full role workflows (Tenant, Landlord, Admin) and complete Django + React + PostgreSQL step-by-step architecture guide in Bangla.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
