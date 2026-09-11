@@ -27,6 +27,7 @@ interface AdminViewProps {
   onRejectProperty: (id: string) => void;
   onToggleVerification: (id: string) => void;
   onApproveLandlord: (userId: string) => void;
+  onRejectLandlord: (userId: string) => void;
   language: 'bn' | 'en';
   onSelectProperty: (property: Property) => void;
 }
@@ -38,6 +39,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   onRejectProperty,
   onToggleVerification,
   onApproveLandlord,
+  onRejectLandlord,
   language,
   onSelectProperty
 }) => {
@@ -316,7 +318,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         className="bg-[#2D5A27] text-white px-5 py-2 rounded-xl text-sm font-bold hover:bg-[#23471E] transition-colors flex items-center gap-2"
                       >
                         <CheckCircle2 className="w-4 h-4" />
-                        {isBn ? 'ভেরিফাই করুন' : 'Verify Landlord'}
+                        {isBn ? 'ভেরিফাই করুন' : 'Verify'}
+                      </button>
+                      <button
+                        onClick={() => onRejectLandlord(user.id)}
+                        className="bg-rose-100 text-rose-800 px-4 py-2 rounded-xl text-sm font-bold hover:bg-rose-200 transition-colors flex items-center gap-2"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        {isBn ? 'বাতিল' : 'Reject'}
                       </button>
                     </div>
                     

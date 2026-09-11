@@ -254,11 +254,39 @@ export default function App() {
     } catch (err) {}
   };
 
+  const handleRejectLandlord = async (userId: string) => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ 
+          nid_front_url: null, 
+          nid_back_url: null,
+          is_verified: false 
+        })
+        .eq('id', userId);
+      if (!error) fetchPendingVerifications();
+    } catch (err) {}
+  };
+
   const handleRejectProperty = async (id: string) => {
     try {
       const { error } = await supabase
         .from('properties')
         .update({ status: 'REJECTED' })
+        .eq('id', id);
+      if (!error) fetchData();
+    } catch (err) {}
+  };
+
+  const handleDeleteProperty = async (id: string) => {
+    try {
+      await supabase.from('favorites').delete().eq('property_id', id);
+      await supabase.from('visit_requests').delete().eq('property_id', id);
+      await supabase.from('chat_messages').delete().eq('property_id', id);
+      
+      const { error } = await supabase
+        .from('properties')
+        .delete()
         .eq('id', id);
       if (!error) fetchData();
     } catch (err) {}
@@ -332,6 +360,16 @@ export default function App() {
     } catch (err) {}
   };
 
+  const handleCancelVisitRequest = async (requestId: string) => {
+    try {
+      const { error } = await supabase
+        .from('visit_requests')
+        .delete()
+        .eq('id', requestId);
+      if (!error) fetchData();
+    } catch (err) {}
+  };
+
   const pendingAdminCount = properties.filter(p => p.status === 'PENDING').length;
   const isBn = language === 'bn';
 
@@ -393,6 +431,7 @@ export default function App() {
                   onToggleRentedStatus={handleToggleRentedStatus}
                   onAcceptVisitRequest={handleAcceptVisitRequest}
                   onDeclineVisitRequest={handleDeclineVisitRequest}
+                  onDeleteProperty={handleDeleteProperty}
                   language={language}
                   onSelectProperty={setSelectedProperty}
                   currentUser={currentUser}
@@ -410,6 +449,7 @@ export default function App() {
                   onRejectProperty={handleRejectProperty}
                   onToggleVerification={handleToggleVerification}
                   onApproveLandlord={handleApproveLandlord}
+                  onRejectLandlord={handleRejectLandlord}
                   language={language}
                   onSelectProperty={setSelectedProperty}
                 />
@@ -427,6 +467,7 @@ export default function App() {
                   onRemoveFavorite={handleToggleFavorite}
                   onSelectProperty={setSelectedProperty}
                   onUpdateProfile={handleUpdateProfile}
+                  onCancelVisitRequest={handleCancelVisitRequest}
                 />
               </ProtectedRoute>
             } />

@@ -31,6 +31,7 @@ interface LandlordViewProps {
   onToggleRentedStatus: (propertyId: string) => void;
   onAcceptVisitRequest: (requestId: string) => void;
   onDeclineVisitRequest: (requestId: string) => void;
+  onDeleteProperty: (propertyId: string) => void;
   language: 'bn' | 'en';
   onSelectProperty: (property: Property) => void;
   currentUser: User | null;
@@ -44,6 +45,7 @@ export const LandlordView: React.FC<LandlordViewProps> = ({
   onToggleRentedStatus,
   onAcceptVisitRequest,
   onDeclineVisitRequest,
+  onDeleteProperty,
   language,
   onSelectProperty,
   currentUser,
@@ -347,10 +349,12 @@ export const LandlordView: React.FC<LandlordViewProps> = ({
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${
                       prop.status === 'ACTIVE' ? 'bg-[#E9EDC9] text-[#2D5A27] border border-[#CCD5AE]' :
                       prop.status === 'PENDING' ? 'bg-[#FAEDCD] text-[#8C6D44] border border-[#D4A373]/40' :
+                      prop.status === 'REJECTED' ? 'bg-rose-100 text-rose-700 border border-rose-200' :
                       'bg-[#F5F2EC] text-[#5A6D56] border border-[#E5E0D8]'
                     }`}>
                       {prop.status === 'ACTIVE' ? (isBn ? 'সক্রিয় (খালি)' : 'Active') :
                        prop.status === 'PENDING' ? (isBn ? 'অনুমোদনের অপেক্ষায়' : 'Pending Approval') :
+                       prop.status === 'REJECTED' ? (isBn ? 'বাতিলকৃত' : 'Rejected') :
                        (isBn ? 'ভাড়া সম্পন্ন' : 'Rented')}
                     </span>
                     <span className="text-xs font-black text-[#2D5A27]">
@@ -384,24 +388,34 @@ export const LandlordView: React.FC<LandlordViewProps> = ({
               {/* Status Action Buttons */}
               <div className="flex items-center justify-between border-t border-[#E5E0D8] pt-2 text-xs">
                 <button
-                  onClick={() => onSelectProperty(prop)}
-                  className="text-[#2D5A27] hover:text-[#D4A373] font-bold"
+                  onClick={() => onDeleteProperty(prop.id)}
+                  className="text-rose-500 hover:text-rose-700 bg-rose-50 px-2 py-1.5 rounded-xl font-bold flex items-center gap-1 transition-colors"
                 >
-                  {isBn ? 'বিস্তারিত দেখুন' : 'View Full Details'}
+                  <X className="w-3.5 h-3.5" />
+                  {isBn ? 'ডিলিট করুন' : 'Delete'}
                 </button>
 
-                <button
-                  onClick={() => onToggleRentedStatus(prop.id)}
-                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors ${
-                    prop.status === 'RENTED'
-                      ? 'bg-[#2D5A27] text-white'
-                      : 'bg-[#E9EDC9] text-[#2D5A27] border border-[#CCD5AE] hover:bg-[#CCD5AE]'
-                  }`}
-                >
-                  {prop.status === 'RENTED' 
-                    ? (isBn ? 'আবার খালি করুন (Mark Active)' : 'Mark Available')
-                    : (isBn ? 'ভাড়া হয়ে গেছে (Mark Rented)' : 'Mark as Rented')}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onSelectProperty(prop)}
+                    className="text-[#2D5A27] hover:text-[#D4A373] font-bold"
+                  >
+                    {isBn ? 'বিস্তারিত' : 'View'}
+                  </button>
+
+                  <button
+                    onClick={() => onToggleRentedStatus(prop.id)}
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors ${
+                      prop.status === 'RENTED'
+                        ? 'bg-[#2D5A27] text-white'
+                        : 'bg-[#E9EDC9] text-[#2D5A27] border border-[#CCD5AE] hover:bg-[#CCD5AE]'
+                    }`}
+                  >
+                    {prop.status === 'RENTED' 
+                      ? (isBn ? 'খালি করুন' : 'Mark Available')
+                      : (isBn ? 'ভাড়া হয়েছে' : 'Mark Rented')}
+                  </button>
+                </div>
               </div>
             </div>
           ))}

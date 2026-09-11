@@ -23,6 +23,7 @@ interface TenantDashboardViewProps {
   onRemoveFavorite: (id: string) => void;
   onSelectProperty: (property: Property) => void;
   onUpdateProfile: (name: string, phone: string) => void;
+  onCancelVisitRequest: (requestId: string) => void;
 }
 
 export const TenantDashboardView: React.FC<TenantDashboardViewProps> = ({
@@ -33,7 +34,8 @@ export const TenantDashboardView: React.FC<TenantDashboardViewProps> = ({
   language,
   onRemoveFavorite,
   onSelectProperty,
-  onUpdateProfile
+  onUpdateProfile,
+  onCancelVisitRequest
 }) => {
   const isBn = language === 'bn';
   const [isEditing, setIsEditing] = useState(false);
@@ -177,7 +179,17 @@ export const TenantDashboardView: React.FC<TenantDashboardViewProps> = ({
                         <h4 className="font-bold text-[#354231] text-sm truncate pr-2">
                           {prop ? (isBn ? prop.titleBn || prop.title : prop.title) : 'Unknown Property'}
                         </h4>
-                        {getStatusBadge(req.status)}
+                        <div className="flex flex-col items-end gap-1">
+                          {getStatusBadge(req.status)}
+                          {req.status === 'PENDING' && (
+                            <button
+                              onClick={() => onCancelVisitRequest(req.id)}
+                              className="text-[10px] font-bold text-rose-500 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100 transition-colors"
+                            >
+                              {isBn ? 'বাতিল করুন' : 'Cancel'}
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <p className="text-xs text-[#5A6D56] flex items-center gap-1.5 mb-1">
                         <MapPin className="w-3.5 h-3.5 text-[#8F9E8B]" /> {prop?.area}, {prop?.city}
