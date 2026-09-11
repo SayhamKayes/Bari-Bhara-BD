@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { Role, Property, FilterState, VisitRequest } from './types';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { Navbar } from './components/Navbar';
-import { TenantView } from './components/TenantView';
-import { LandlordView } from './components/LandlordView';
-import { AdminView } from './components/AdminView';
-import { GuideView } from './components/GuideView';
-import { TenantDashboardView } from './components/TenantDashboardView';
-import { PropertyDetailModal } from './components/PropertyDetailModal';
-import { AddPropertyModal } from './components/AddPropertyModal';
-import { ChatDrawer } from './components/ChatDrawer';
-import { AuthModal } from './components/auth/AuthModal';
-import { AdvertisementSlider } from './components/AdvertisementSlider';
+import { Navbar } from './frontend/layout/Navbar';
+import { Suspense, lazy } from 'react';
+import { PropertyDetailModal } from './frontend/components/PropertyDetailModal';
+import { AddPropertyModal } from './dashboards/shared/AddPropertyModal';
+import { ChatDrawer } from './dashboards/shared/ChatDrawer';
+import { AuthModal } from './auth/AuthModal';
+import { AdvertisementSlider } from './frontend/components/AdvertisementSlider';
+
+// Lazy loaded views
+const TenantView = lazy(() => import('./frontend/pages/TenantView').then(module => ({ default: module.TenantView })));
+const LandlordView = lazy(() => import('./dashboards/landlord/LandlordView').then(module => ({ default: module.LandlordView })));
+const AdminView = lazy(() => import('./dashboards/admin/AdminView').then(module => ({ default: module.AdminView })));
+const TenantDashboardView = lazy(() => import('./dashboards/tenant/TenantDashboardView').then(module => ({ default: module.TenantDashboardView })));
+const GuideView = lazy(() => import('./frontend/pages/GuideView').then(module => ({ default: module.GuideView })));
+const ProfileSettingsView = lazy(() => import('./dashboards/shared/ProfileSettingsView').then(module => ({ default: module.ProfileSettingsView })));
+const PanelLoginView = lazy(() => import('./auth/PanelLoginView').then(module => ({ default: module.PanelLoginView })));
+
 import { supabase, mapDbPropertyToFrontend, mapDbVisitRequestToFrontend } from './lib/supabase';
 import { 
   Building2, 
@@ -329,6 +335,14 @@ export default function App() {
   const pendingAdminCount = properties.filter(p => p.status === 'PENDING').length;
   const isBn = language === 'bn';
 
+  const handleLoginSuccess = (role: Role) => {
+    setIsAuthenticated(true);
+    setCurrentRole(role);
+    if (role === 'ADMIN') navigate('/admin');
+    else if (role === 'LANDLORD') navigate('/landlord');
+    else navigate('/tenant');
+  };
+
   return (
     <div className="min-h-screen bg-[#FDFBF7] text-[#354231] flex flex-col font-sans selection:bg-[#CCD5AE]">
       
@@ -342,6 +356,7 @@ export default function App() {
         pendingAdminCount={pendingAdminCount}
         visitRequestsCount={visitRequests.filter(r => r.status === 'PENDING').length}
         isAuthenticated={isAuthenticated}
+        currentUser={currentUser}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onLogout={async () => {
           await supabase.auth.signOut();
@@ -350,74 +365,87 @@ export default function App() {
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        <Routes>
-          <Route path="/" element={
-            <>
-              <AdvertisementSlider language={language} />
-              <TenantView
-                properties={properties}
-                filters={filters}
-                onFilterChange={handleFilterChange}
-                onResetFilters={handleResetFilters}
-                language={language}
-                favorites={favorites}
-                onToggleFavorite={handleToggleFavorite}
-                onSelectProperty={setSelectedProperty}
-                onOpenChat={(prop) => setChatProperty(prop)}
-              />
-            </>
-          } />
+        <Suspense fallback={<div className="flex h-[50vh] items-center justify-center text-[#5A6D56]">Loading page...</div>}>
+          <Routes>
+            <Route path="/" element={
+              <>
+                <AdvertisementSlider language={language} />
+                <TenantView
+                  properties={properties}
+                  filters={filters}
+                  onFilterChange={handleFilterChange}
+                  onResetFilters={handleResetFilters}
+                  language={language}
+                  favorites={favorites}
+                  onToggleFavorite={handleToggleFavorite}
+                  onSelectProperty={setSelectedProperty}
+                  onOpenChat={(prop) => setChatProperty(prop)}
+                />
+              </>
+            } />
 
-          <Route path="/landlord" element={
-            <ProtectedRoute isAuthenticated={isAuthenticated} isLoadingAuth={isLoadingAuth} currentRole={currentRole} allowedRoles={['LANDLORD', 'ADMIN']}>
-              <LandlordView
-                properties={properties.filter(p => p.landlordId === currentUserId)}
-                visitRequests={visitRequests}
-                onOpenAddModal={() => setIsAddModalOpen(true)}
-                onToggleRentedStatus={handleToggleRentedStatus}
-                onAcceptVisitRequest={handleAcceptVisitRequest}
-                onDeclineVisitRequest={handleDeclineVisitRequest}
-                language={language}
-                onSelectProperty={setSelectedProperty}
-                currentUser={currentUser}
-                onVerificationSubmit={() => fetchUserRole(currentUserId!)}
-              />
-            </ProtectedRoute>
-          } />
+            <Route path="/landlord" element={
+              <ProtectedRoute isAuthenticated={isAuthenticated} isLoadingAuth={isLoadingAuth} currentRole={currentRole} allowedRoles={['LANDLORD', 'ADMIN']} language={language} onLogin={handleLoginSuccess}>
+                <LandlordView
+                  properties={properties.filter(p => p.landlordId === currentUserId)}
+                  visitRequests={visitRequests}
+                  onOpenAddModal={() => setIsAddModalOpen(true)}
+                  onToggleRentedStatus={handleToggleRentedStatus}
+                  onAcceptVisitRequest={handleAcceptVisitRequest}
+                  onDeclineVisitRequest={handleDeclineVisitRequest}
+                  language={language}
+                  onSelectProperty={setSelectedProperty}
+                  currentUser={currentUser}
+                  onVerificationSubmit={() => fetchUserRole(currentUserId!)}
+                />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/admin" element={
-            <ProtectedRoute isAuthenticated={isAuthenticated} isLoadingAuth={isLoadingAuth} currentRole={currentRole} allowedRoles={['ADMIN']}>
-              <AdminView
-                properties={properties}
-                pendingVerifications={pendingVerifications}
-                onApproveProperty={handleApproveProperty}
-                onRejectProperty={handleRejectProperty}
-                onToggleVerification={handleToggleVerification}
-                onApproveLandlord={handleApproveLandlord}
-                language={language}
-                onSelectProperty={setSelectedProperty}
-              />
-            </ProtectedRoute>
-          } />
+            <Route path="/admin" element={
+              <ProtectedRoute isAuthenticated={isAuthenticated} isLoadingAuth={isLoadingAuth} currentRole={currentRole} allowedRoles={['ADMIN']} language={language} onLogin={handleLoginSuccess}>
+                <AdminView
+                  properties={properties}
+                  pendingVerifications={pendingVerifications}
+                  onApproveProperty={handleApproveProperty}
+                  onRejectProperty={handleRejectProperty}
+                  onToggleVerification={handleToggleVerification}
+                  onApproveLandlord={handleApproveLandlord}
+                  language={language}
+                  onSelectProperty={setSelectedProperty}
+                />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/tenant" element={
-            <ProtectedRoute isAuthenticated={isAuthenticated} isLoadingAuth={isLoadingAuth} currentRole={currentRole} allowedRoles={['TENANT', 'ADMIN', 'LANDLORD']}>
-              <TenantDashboardView
-                currentUser={currentUser}
-                visitRequests={visitRequests}
-                properties={properties}
-                favorites={favorites}
-                language={language}
-                onRemoveFavorite={handleToggleFavorite}
-                onSelectProperty={setSelectedProperty}
-                onUpdateProfile={handleUpdateProfile}
-              />
-            </ProtectedRoute>
-          } />
+            <Route path="/tenant" element={
+              <ProtectedRoute isAuthenticated={isAuthenticated} isLoadingAuth={isLoadingAuth} currentRole={currentRole} allowedRoles={['TENANT', 'ADMIN', 'LANDLORD']} language={language} onLogin={handleLoginSuccess}>
+                <TenantDashboardView
+                  currentUser={currentUser}
+                  visitRequests={visitRequests}
+                  properties={properties}
+                  favorites={favorites}
+                  language={language}
+                  onRemoveFavorite={handleToggleFavorite}
+                  onSelectProperty={setSelectedProperty}
+                  onUpdateProfile={handleUpdateProfile}
+                />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/guide" element={<GuideView language={language} />} />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+            <Route path="/profile" element={
+              <ProtectedRoute isAuthenticated={isAuthenticated} isLoadingAuth={isLoadingAuth} currentRole={currentRole} allowedRoles={['TENANT', 'ADMIN', 'LANDLORD']} language={language} onLogin={handleLoginSuccess}>
+                <ProfileSettingsView
+                  currentUser={currentUser}
+                  currentRole={currentRole}
+                  language={language}
+                  onUpdateProfile={handleUpdateProfile}
+                />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/guide" element={<GuideView language={language} />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </Suspense>
       </main>
 
       {/* Modals & Drawers */}
@@ -501,16 +529,28 @@ const ProtectedRoute = ({
   isLoadingAuth,
   currentRole, 
   allowedRoles, 
-  children 
+  children,
+  language,
+  onLogin
 }: { 
   isAuthenticated: boolean; 
   isLoadingAuth: boolean;
   currentRole: Role; 
   allowedRoles: Role[]; 
   children: React.ReactNode;
+  language?: 'bn' | 'en';
+  onLogin?: (role: Role) => void;
 }) => {
   if (isLoadingAuth) return <div className="flex h-[50vh] items-center justify-center text-[#5A6D56]">Loading authentication...</div>;
-  if (!isAuthenticated) return <Navigate to="/" />;
-  if (!allowedRoles.includes(currentRole)) return <Navigate to="/" />;
+  if (!isAuthenticated) {
+    const panelType = allowedRoles[0];
+    return <PanelLoginView panelType={panelType} language={language || 'en'} onLoginSuccess={onLogin!} />;
+  }
+  if (!allowedRoles.includes(currentRole)) {
+    if (sessionStorage.getItem('isPanelLogin') === 'true') {
+      return <div className="flex h-[50vh] items-center justify-center text-[#5A6D56]">Verifying permissions...</div>;
+    }
+    return <Navigate to="/" />;
+  }
   return <>{children}</>;
 };
