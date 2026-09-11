@@ -38,12 +38,22 @@ CREATE TABLE users (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Function to safely get user role without triggering RLS recursion
+CREATE OR REPLACE FUNCTION public.get_user_role()
+RETURNS user_role
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT role FROM users WHERE id = auth.uid();
+$$;
+
 -- RLS for users
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view their own profile" ON users FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Users can update their own profile" ON users FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "Admins can view all users" ON users FOR SELECT USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'ADMIN')
+  public.get_user_role() = 'ADMIN'
 );
 
 -- Trigger to automatically create a user profile when they sign up in auth.users
@@ -114,14 +124,14 @@ CREATE POLICY "Anyone can view active properties" ON properties FOR SELECT USING
 CREATE POLICY "Landlords can view their own properties" ON properties FOR SELECT USING (auth.uid() = landlord_id);
 CREATE POLICY "Landlords can insert properties" ON properties FOR INSERT WITH CHECK (
   auth.uid() = landlord_id AND 
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'LANDLORD')
+  public.get_user_role() = 'LANDLORD'
 );
 CREATE POLICY "Landlords can update their own properties" ON properties FOR UPDATE USING (
   auth.uid() = landlord_id AND 
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'LANDLORD')
+  public.get_user_role() = 'LANDLORD'
 );
 CREATE POLICY "Admins have full access to properties" ON properties FOR ALL USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'ADMIN')
+  public.get_user_role() = 'ADMIN'
 );
 
 -- VISIT REQUESTS TABLE
@@ -144,13 +154,13 @@ CREATE POLICY "Landlords can view requests for their properties" ON visit_reques
 );
 CREATE POLICY "Tenants can insert requests" ON visit_requests FOR INSERT WITH CHECK (
   auth.uid() = tenant_id AND 
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'TENANT')
+  public.get_user_role() = 'TENANT'
 );
 CREATE POLICY "Landlords can update request status" ON visit_requests FOR UPDATE USING (
   EXISTS (SELECT 1 FROM properties WHERE id = visit_requests.property_id AND landlord_id = auth.uid())
 );
 CREATE POLICY "Admins have full access to requests" ON visit_requests FOR ALL USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'ADMIN')
+  public.get_user_role() = 'ADMIN'
 );
 
 -- CHAT MESSAGES TABLE
@@ -172,7 +182,7 @@ CREATE POLICY "Users can insert messages" ON chat_messages FOR INSERT WITH CHECK
   auth.uid() = sender_id
 );
 CREATE POLICY "Admins have full access to chats" ON chat_messages FOR ALL USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'ADMIN')
+  public.get_user_role() = 'ADMIN'
 );
 
 -- FAVORITES TABLE
@@ -243,14 +253,14 @@ CREATE POLICY "Admins can view verification documents"
 ON storage.objects FOR SELECT 
 USING (
   bucket_id = 'verification-documents' AND 
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'ADMIN')
+  public.get_user_role() = 'ADMIN'
 );
 
 CREATE POLICY "Landlords can upload verification documents" 
 ON storage.objects FOR INSERT 
 WITH CHECK (
   bucket_id = 'verification-documents' AND 
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'LANDLORD')
+  public.get_user_role() = 'LANDLORD'
 );
 
 CREATE POLICY "Landlords can view own verification documents" 
