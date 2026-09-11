@@ -36,6 +36,7 @@ interface LandlordViewProps {
   onSelectProperty: (property: Property) => void;
   currentUser: User | null;
   onVerificationSubmit: () => void;
+  onEditProperty: (property: Property) => void;
 }
 
 export const LandlordView: React.FC<LandlordViewProps> = ({
@@ -49,7 +50,8 @@ export const LandlordView: React.FC<LandlordViewProps> = ({
   language,
   onSelectProperty,
   currentUser,
-  onVerificationSubmit
+  onVerificationSubmit,
+  onEditProperty
 }) => {
   const isBn = language === 'bn';
   const [nidFront, setNidFront] = useState<File | null>(null);
@@ -387,13 +389,21 @@ export const LandlordView: React.FC<LandlordViewProps> = ({
 
               {/* Status Action Buttons */}
               <div className="flex items-center justify-between border-t border-[#E5E0D8] pt-2 text-xs">
-                <button
-                  onClick={() => onDeleteProperty(prop.id)}
-                  className="text-rose-500 hover:text-rose-700 bg-rose-50 px-2 py-1.5 rounded-xl font-bold flex items-center gap-1 transition-colors"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  {isBn ? 'ডিলিট করুন' : 'Delete'}
-                </button>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => onDeleteProperty(prop.id)}
+                    className="text-rose-500 hover:text-rose-700 bg-rose-50 px-2 py-1.5 rounded-xl font-bold flex items-center gap-1 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    {isBn ? 'ডিলিট' : 'Delete'}
+                  </button>
+                  <button
+                    onClick={() => onEditProperty(prop)}
+                    className="text-blue-500 hover:text-blue-700 bg-blue-50 px-2 py-1.5 rounded-xl font-bold flex items-center gap-1 transition-colors"
+                  >
+                    {isBn ? 'এডিট' : 'Edit'}
+                  </button>
+                </div>
 
                 <div className="flex items-center gap-2">
                   <button

@@ -21,9 +21,9 @@ import { supabase } from '../../lib/supabase';
 
 interface AddPropertyModalProps {
   isOpen: boolean;
-  onClose: () => void;
   onAddProperty: (property: Property) => void;
   language: 'bn' | 'en';
+  editingProperty?: Property | null;
 }
 
 export const AddPropertyModal: React.FC<AddPropertyModalProps> = ({
@@ -58,12 +58,43 @@ export const AddPropertyModal: React.FC<AddPropertyModalProps> = ({
   const [availableFromBn, setAvailableFromBn] = useState('১লা আগামী মাস');
   const [description, setDescription] = useState('');
   const [descriptionBn, setDescriptionBn] = useState('');
-  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([
-    'Lift', '24/7 Guard', 'WASA Water', 'Generator Backup'
-  ]);
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>(
+    editingProperty?.amenities || ['Lift', '24/7 Guard', 'WASA Water', 'Generator Backup']
+  );
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [existingImages, setExistingImages] = useState<string[]>(editingProperty?.images || []);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Initialize all fields if editingProperty exists
+  React.useEffect(() => {
+    if (editingProperty) {
+      setPropertyType(editingProperty.propertyType);
+      setCategory(editingProperty.category);
+      setTitle(editingProperty.title);
+      setTitleBn(editingProperty.titleBn || editingProperty.title);
+      setDivision(editingProperty.division);
+      setCity(editingProperty.city);
+      setArea(editingProperty.area);
+      setAddress(editingProperty.address);
+      setAddressBn(editingProperty.addressBn || editingProperty.address);
+      setRentAmount(editingProperty.rentAmount);
+      setAdvanceAmount(editingProperty.advanceAmount);
+      setServiceCharge(editingProperty.serviceCharge);
+      setGasType(editingProperty.gasType);
+      setBedrooms(editingProperty.bedrooms || 3);
+      setBathrooms(editingProperty.bathrooms || 2);
+      setSquareFeet(editingProperty.squareFeet);
+      setFloorNumber(editingProperty.floorNumber || 4);
+      setTotalFloors(editingProperty.totalFloors || 6);
+      setAvailableFrom(editingProperty.availableFrom);
+      setAvailableFromBn(editingProperty.availableFromBn || editingProperty.availableFrom);
+      setDescription(editingProperty.description || '');
+      setDescriptionBn(editingProperty.descriptionBn || editingProperty.description || '');
+      setSelectedAmenities(editingProperty.amenities || []);
+      setExistingImages(editingProperty.images || []);
+    }
+  }, [editingProperty]);
 
   const ALL_AMENITIES = [
     'Lift',
@@ -130,12 +161,16 @@ export const AddPropertyModal: React.FC<AddPropertyModalProps> = ({
             
           uploadedImageUrls.push(publicUrl);
         }
-      } else {
+      }
+
+      if (!editingProperty && selectedFiles.length === 0 && existingImages.length === 0) {
         // Fallback placeholder
         uploadedImageUrls = ['https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1000&q=80'];
       }
 
-      const { error } = await supabase.from('properties').insert({
+      const finalImages = [...existingImages, ...uploadedImageUrls];
+
+      const propertyData = {
         landlord_id: userId,
         title: dbTitle,
         title_bn: titleBn || dbTitle,
@@ -158,13 +193,22 @@ export const AddPropertyModal: React.FC<AddPropertyModalProps> = ({
         floor_number: Number(floorNumber),
         total_floors: Number(totalFloors),
         amenities: selectedAmenities,
-        images: uploadedImageUrls,
+        images: finalImages,
         available_from: availableFrom || availableFromBn,
         available_from_bn: availableFromBn,
-        house_rules: ['On-time rent payment', 'Maintain cleanliness'],
-        status: 'PENDING',
-        is_verified: false
-      });
+        house_rules: editingProperty?.houseRules || ['On-time rent payment', 'Maintain cleanliness'],
+        status: editingProperty ? editingProperty.status : 'PENDING',
+        is_verified: editingProperty ? editingProperty.isVerified : false
+      };
+
+      let error;
+      if (editingProperty) {
+        const { error: updateError } = await supabase.from('properties').update(propertyData).eq('id', editingProperty.id);
+        error = updateError;
+      } else {
+        const { error: insertError } = await supabase.from('properties').insert(propertyData);
+        error = insertError;
+      }
 
       if (error) throw error;
 
@@ -198,10 +242,14 @@ export const AddPropertyModal: React.FC<AddPropertyModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-bold text-[#354231]">
-                {isBn ? 'নতুন বাড়ি/রুম/দোকানের বিজ্ঞাপন দিন' : 'List a New Property / Store'}
+                {editingProperty 
+                  ? (isBn ? 'বিজ্ঞাপন সম্পাদনা করুন' : 'Edit Property Listing')
+                  : (isBn ? 'নতুন বাড়ি/রুম/দোকানের বিজ্ঞাপন দিন' : 'List a New Property / Store')}
               </h2>
               <p className="text-xs text-[#5A6D56]">
-                {isBn ? 'বাড়িওয়ালা বা মালিক হিসেবে আপনার প্রপার্টির তথ্য দিন' : 'Provide your rental details for tenant discovery'}
+                {editingProperty 
+                  ? (isBn ? 'আপনার প্রপার্টির তথ্য আপডেট করুন' : 'Update your property details')
+                  : (isBn ? 'বাড়িওয়ালা বা মালিক হিসেবে আপনার প্রপার্টির তথ্য দিন' : 'Provide your rental details for tenant discovery')}
               </p>
             </div>
           </div>
@@ -549,18 +597,40 @@ export const AddPropertyModal: React.FC<AddPropertyModalProps> = ({
             </div>
             
             {/* Image Preview */}
-            {selectedFiles.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto py-2 mt-2">
-                {selectedFiles.map((file, index) => (
+            <div className="flex flex-wrap gap-2 py-2 mt-2">
+              {existingImages.map((url, index) => (
+                <div key={`existing-${index}`} className="relative group">
                   <img 
-                    key={index} 
-                    src={URL.createObjectURL(file)} 
-                    alt={`Preview ${index}`} 
+                    src={url} 
+                    alt={`Existing ${index}`} 
                     className="w-16 h-16 object-cover rounded-lg border border-[#E5E0D8] shrink-0" 
                   />
-                ))}
-              </div>
-            )}
+                  <button
+                    type="button"
+                    onClick={() => setExistingImages(prev => prev.filter((_, i) => i !== index))}
+                    className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+              {selectedFiles.map((file, index) => (
+                <div key={`new-${index}`} className="relative group">
+                  <img 
+                    src={URL.createObjectURL(file)} 
+                    alt={`New ${index}`} 
+                    className="w-16 h-16 object-cover rounded-lg border border-[#2D5A27] shrink-0" 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== index))}
+                    className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Description */}
@@ -597,7 +667,13 @@ export const AddPropertyModal: React.FC<AddPropertyModalProps> = ({
               className="px-6 py-2.5 rounded-xl bg-[#2D5A27] hover:bg-[#23471E] text-white text-xs font-bold shadow-sm flex items-center gap-1.5 active:scale-95 transition-all disabled:opacity-70"
             >
               <Sparkles className="w-4 h-4 text-[#FAEDCD]" />
-              <span>{isSubmitting ? '...' : (isBn ? 'বিজ্ঞাপন প্রকাশ করুন (Submit Listing)' : 'Publish Listing')}</span>
+              <span>
+                {isSubmitting 
+                  ? '...' 
+                  : (editingProperty 
+                      ? (isBn ? 'আপডেট করুন (Update)' : 'Update Listing')
+                      : (isBn ? 'বিজ্ঞাপন প্রকাশ করুন (Submit Listing)' : 'Publish Listing'))}
+              </span>
             </button>
           </div>
 

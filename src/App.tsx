@@ -178,6 +178,7 @@ export default function App() {
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [chatProperty, setChatProperty] = useState<Property | null>(null);
+  const [editingProperty, setEditingProperty] = useState<Property | null>(null);
 
   // Actions
   const handleToggleFavorite = async (id: string) => {
@@ -370,6 +371,16 @@ export default function App() {
     } catch (err) {}
   };
 
+  const handleEditProperty = (property: Property) => {
+    setEditingProperty(property);
+    setIsAddModalOpen(true);
+  };
+
+  const handleModalClose = () => {
+    setIsAddModalOpen(false);
+    setEditingProperty(null);
+  };
+
   const pendingAdminCount = properties.filter(p => p.status === 'PENDING').length;
   const isBn = language === 'bn';
 
@@ -432,6 +443,7 @@ export default function App() {
                   onAcceptVisitRequest={handleAcceptVisitRequest}
                   onDeclineVisitRequest={handleDeclineVisitRequest}
                   onDeleteProperty={handleDeleteProperty}
+                  onEditProperty={handleEditProperty}
                   language={language}
                   onSelectProperty={setSelectedProperty}
                   currentUser={currentUser}
@@ -501,11 +513,15 @@ export default function App() {
         }}
       />
 
-      <AddPropertyModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onAddProperty={handleAddProperty}
+      <AddPropertyModal 
+        isOpen={isAddModalOpen} 
+        onClose={handleModalClose}
+        onAddProperty={(prop) => {
+          fetchData();
+          handleModalClose();
+        }}
         language={language}
+        editingProperty={editingProperty}
       />
 
       <ChatDrawer
