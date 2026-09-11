@@ -1,6 +1,6 @@
 import React from 'react';
-import { Property, FilterState, PropertyType, TargetCategory, GasType } from '../types';
-import { PropertyCard } from './PropertyCard';
+import { Property, FilterState, PropertyType, TargetCategory, GasType } from '../../types';
+import { PropertyCard } from '../components/PropertyCard';
 import { 
   Search, 
   SlidersHorizontal, 
@@ -14,7 +14,7 @@ import {
   Building,
   Check
 } from 'lucide-react';
-import { BANGLADESH_DIVISIONS } from '../data/mockProperties';
+import { BANGLADESH_DIVISIONS } from '../../data/mockProperties';
 
 interface TenantViewProps {
   properties: Property[];

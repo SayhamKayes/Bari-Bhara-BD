@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Property, VisitRequest, User } from '../types';
+import { Property, VisitRequest, User } from '../../types';
 import { 
   Building2, 
   PlusCircle, 
@@ -22,7 +22,7 @@ import {
   ShieldCheck,
   Loader2
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 interface LandlordViewProps {
   properties: Property[];

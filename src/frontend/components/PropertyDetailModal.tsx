@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Property, VisitRequest } from '../types';
+import { Property, VisitRequest } from '../../types';
 import { 
   X, 
   MapPin, 

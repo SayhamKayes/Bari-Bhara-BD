@@ -1,4 +1,5 @@
 -- Drop existing tables if they exist to prevent errors on re-run
+DROP TABLE IF EXISTS favorites CASCADE;
 DROP TABLE IF EXISTS chat_messages CASCADE;
 DROP TABLE IF EXISTS visit_requests CASCADE;
 DROP TABLE IF EXISTS properties CASCADE;

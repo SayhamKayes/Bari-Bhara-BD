@@ -13,7 +13,7 @@ export const mapDbPropertyToFrontend = (dbProp: any): Property => {
   return {
     id: dbProp.id,
     title: dbProp.title,
-    titleBn: dbProp.title, 
+    titleBn: dbProp.title,
     propertyType: dbProp.property_type,
     category: dbProp.target_category,
     division: dbProp.division,

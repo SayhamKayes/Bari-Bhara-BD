@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BANGLA_STEP_BY_STEP_GUIDE, GuideSection } from '../data/guideContent';
+import { BANGLA_STEP_BY_STEP_GUIDE, GuideSection } from '../../data/guideContent';
 import { 
   BookOpen, 
   CheckCircle, 

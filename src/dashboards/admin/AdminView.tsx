@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Property, User } from '../types';
+import { Property, User } from '../../types';
 import { 
   ShieldCheck, 
   CheckCircle2, 

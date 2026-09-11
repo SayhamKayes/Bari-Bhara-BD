@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Property, ChatMessage, Role } from '../types';
+import { Property, ChatMessage, Role } from '../../types';
 import { X, Send, MessageCircle, CheckCheck, User, ShieldCheck } from 'lucide-react';
-import { supabase, mapDbChatMessageToFrontend } from '../lib/supabase';
+import { supabase, mapDbChatMessageToFrontend } from '../../lib/supabase';
 
 interface ChatDrawerProps {
   property: Property | null;

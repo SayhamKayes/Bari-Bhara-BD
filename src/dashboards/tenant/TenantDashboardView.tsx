@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Property, VisitRequest } from '../types';
-import { PropertyCard } from './PropertyCard';
+import { Property, VisitRequest } from '../../types';
+import { PropertyCard } from '../../frontend/components/PropertyCard';
 import { 
   User, 
   Phone, 
@@ -12,7 +12,7 @@ import {
   Clock3, 
   Heart 
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 interface TenantDashboardViewProps {
   currentUser: any;

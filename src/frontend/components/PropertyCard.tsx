@@ -1,5 +1,5 @@
 import React from 'react';
-import { Property } from '../types';
+import { Property } from '../../types';
 import { 
   MapPin, 
   Bed, 

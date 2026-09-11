@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Property, PropertyType, TargetCategory, GasType } from '../types';
+import { Property, PropertyType, TargetCategory, GasType } from '../../types';
 import { 
   X, 
   Building2, 
@@ -16,8 +16,8 @@ import {
   FileText
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { BANGLADESH_DIVISIONS, DHAKA_AREAS } from '../data/mockProperties';
-import { supabase } from '../lib/supabase';
+import { BANGLADESH_DIVISIONS, DHAKA_AREAS } from '../../data/mockProperties';
+import { supabase } from '../../lib/supabase';
 
 interface AddPropertyModalProps {
   isOpen: boolean;
